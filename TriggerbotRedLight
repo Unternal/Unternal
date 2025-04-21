@@ -1,0 +1,69 @@
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local camera = workspace.CurrentCamera
+local localPlayer = Players.LocalPlayer
+
+local triggerBotEnabled = false
+local lockedTarget = nil
+
+local FOV_RADIUS = 100
+
+-- Toggle Triggerbot (Z)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.Z then
+        triggerBotEnabled = not triggerBotEnabled
+        print("Triggerbot", triggerBotEnabled and "Enabled" or "Disabled")
+    end
+end)
+
+-- Get closest player to cursor
+local function getClosestTarget()
+    local closestPlayer = nil
+    local shortestDistance = FOV_RADIUS
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+
+            if onScreen then
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Triggerbot logic
+RunService.RenderStepped:Connect(function()
+    if not triggerBotEnabled then return end
+
+    -- Get the closest target if one doesn't exist
+    if not lockedTarget or not lockedTarget.Character or not lockedTarget.Character:FindFirstChild("Head") then
+        lockedTarget = getClosestTarget()
+    end
+
+    -- If there's a locked target and it has a head
+    if lockedTarget and lockedTarget.Character and lockedTarget.Character:FindFirstChild("Head") then
+        local headPos = lockedTarget.Character.Head.Position
+        local ray = Ray.new(camera.CFrame.Position, (headPos - camera.CFrame.Position).Unit * 100)
+        local hit, pos = workspace:FindPartOnRay(ray, localPlayer.Character)
+
+        -- Check if the ray hits the target's head
+        if hit and hit:IsDescendantOf(lockedTarget.Character) then
+            -- Try to activate tool (auto shoot)
+            local tool = localPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Activate()  -- Simulate shooting with the tool
+            end
+        end
+    end
+end)
